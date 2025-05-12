@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Tracker - Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .admin-container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 20px;
+        }
+        .photo-preview {
+            max-width: 300px;
+            max-height: 300px;
+            margin-bottom: 20px;
+        }
+        #map {
+            height: 400px;
+            margin-top: 20px;
+        }
+        .location-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <h1 class="mb-4">Photo Tracker - Admin View</h1>
+        
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Photo Preview</h5>
+                        <img src="/photo/{{ photo.id }}" class="photo-preview" alt="Shared photo">
+                        <p class="card-text">
+                            <strong>Original filename:</strong> {{ photo.original_filename }}<br>
+                            <strong>Created:</strong> {{ photo.created_at.strftime('%Y-%m-%d %H:%M:%S') }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Location History</h5>
+                        <div id="map"></div>
+                        <div class="location-list mt-3">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Latitude</th>
+                                        <th>Longitude</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="locationTable">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Replace YOUR_GOOGLE_MAPS_API_KEY with your actual Google Maps API key -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDennT-38SmyEZXAmsTjdIvR3YMBlxxa9I"></script>
+    <script>
+        const photoId = '{{ photo.id }}';
+        let map;
+        let markers = [];
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 2,
+                center: { lat: 0, lng: 0 }
+            });
+        }
+
+        function addMarker(lat, lng, timestamp) {
+            const marker = new google.maps.Marker({
+                position: { lat, lng },
+                map: map,
+                title: new Date(timestamp).toLocaleString()
+            });
+            markers.push(marker);
+            return marker;
+        }
+
+        function updateLocations() {
+            fetch(`/locations/${photoId}`)
+                .then(response => response.json())
+                .then(locations => {
+                    // Clear existing markers
+                    markers.forEach(marker => marker.setMap(null));
+                    markers = [];
+                    
+                    // Clear table
+                    const table = document.getElementById('locationTable');
+                    table.innerHTML = '';
+                    
+                    if (locations.length > 0) {
+                        // Center map on most recent location
+                        const latest = locations[locations.length - 1];
+                        map.setCenter({ lat: latest.latitude, lng: latest.longitude });
+                        map.setZoom(15);
+                        
+                        // Add markers and table rows
+                        locations.forEach(loc => {
+                            const marker = addMarker(loc.latitude, loc.longitude, loc.timestamp);
+                            
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${new Date(loc.timestamp).toLocaleString()}</td>
+                                <td>${loc.latitude.toFixed(6)}</td>
+                                <td>${loc.longitude.toFixed(6)}</td>
+                            `;
+                            table.appendChild(row);
+                        });
+                    }
+                })
+                .catch(error => console.error('Error fetching locations:', error));
+        }
+
+        // Initialize map and start periodic updates
+        window.onload = function() {
+            initMap();
+            updateLocations();
+            // Update locations every 30 seconds
+            setInterval(updateLocations, 30000);
+        };
+    </script>
+</body>
+</html> 
